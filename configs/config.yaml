@@ -1,0 +1,50 @@
+# Amazon ML Challenge 2026 - Business Entity Resolution Configuration
+
+project:
+  name: "amazon-ml-challenge-2026"
+  task: "business_entity_resolution"
+  reference_source: "source1"
+  target_sources:
+    - "source2"
+    - "source3"
+
+paths:
+  raw_data_dir: "data"
+  train_dir: "data/train"
+  test_dir: "data/test"
+  output_dir: "output"
+  experiments_dir: "experiments"
+  
+  # Training files
+  train_source1: "data/train/train_source1.tsv"
+  train_source2: "data/train/train_source2.tsv"
+  train_source3: "data/train/train_source3.tsv"
+  train_ground_truth: "data/train/train_ground_truth.tsv"
+  
+  # Test files
+  test_source1: "data/test/test_source1.tsv"
+  test_source2: "data/test/test_source2.tsv"
+  test_source3: "data/test/test_source3.tsv"
+
+schema:
+  delimiter: "\t"
+  encoding: "utf-8"
+  entity_columns:
+    - "entity_id"
+    - "business_name"
+    - "business_address"
+    - "country"
+  ground_truth_columns:
+    - "source1_entity_id"
+    - "matched_entity_ids"
+
+processing:
+  chunk_size: 100000
+  handle_open_set_country: true  # Country is open-set (Train has US/India; Test has France/US/India, etc.)
+  fill_missing_address: ""
+  
+# Placeholder parameters for future blocking and candidate generation phase
+blocking:
+  enabled: false
+  method: "standard" # will support inverted index / token blocking
+  max_candidates_per_source: 50

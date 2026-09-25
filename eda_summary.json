@@ -1,0 +1,456 @@
+{
+  "train_s1": {
+    "file": "data/train/train_source1.tsv",
+    "rows": 2206821,
+    "cols": [
+      "entity_id",
+      "business_name",
+      "business_address",
+      "country"
+    ],
+    "missing": {},
+    "unique_eids": 2206821,
+    "duplicate_eids": 0,
+    "unique_names": 1538804,
+    "duplicate_names_count": 668017,
+    "top_names": [
+      [
+        "primary care group",
+        253
+      ],
+      [
+        "ear nose & throat group",
+        251
+      ],
+      [
+        "pediatric group",
+        222
+      ],
+      [
+        "womens health group",
+        220
+      ],
+      [
+        "physical therapy group",
+        218
+      ]
+    ],
+    "name_stats": {
+      "min": 3,
+      "max": 105,
+      "mean": 24.03,
+      "median": 24
+    },
+    "addr_stats": {
+      "min": 11,
+      "max": 256,
+      "mean": 52.07,
+      "median": 41
+    },
+    "country_dist": [
+      [
+        "US",
+        1323633
+      ],
+      [
+        "India",
+        883188
+      ]
+    ],
+    "total_countries": 2
+  },
+  "train_s2": {
+    "file": "data/train/train_source2.tsv",
+    "rows": 5034616,
+    "cols": [
+      "entity_id",
+      "business_name",
+      "business_address",
+      "country"
+    ],
+    "missing": {
+      "business_address": 168967
+    },
+    "unique_eids": 5034616,
+    "duplicate_eids": 0,
+    "unique_names": 4287470,
+    "duplicate_names_count": 747146,
+    "top_names": [
+      [
+        "primary care",
+        397
+      ],
+      [
+        "physical therapy",
+        386
+      ],
+      [
+        "womens health",
+        369
+      ],
+      [
+        "urgent care",
+        366
+      ],
+      [
+        "behavioral health",
+        363
+      ]
+    ],
+    "name_stats": {
+      "min": 2,
+      "max": 104,
+      "mean": 25.1,
+      "median": 25.0
+    },
+    "addr_stats": {
+      "min": 0,
+      "max": 249,
+      "mean": 46.23,
+      "median": 37.0
+    },
+    "country_dist": [
+      [
+        "US",
+        3016817
+      ],
+      [
+        "India",
+        2017799
+      ]
+    ],
+    "total_countries": 2
+  },
+  "train_s3": {
+    "file": "data/train/train_source3.tsv",
+    "rows": 5285603,
+    "cols": [
+      "entity_id",
+      "business_name",
+      "business_address",
+      "country"
+    ],
+    "missing": {
+      "business_address": 175916
+    },
+    "unique_eids": 5285603,
+    "duplicate_eids": 0,
+    "unique_names": 4579083,
+    "duplicate_names_count": 706520,
+    "top_names": [
+      [
+        "primary care",
+        421
+      ],
+      [
+        "physical therapy",
+        399
+      ],
+      [
+        "pediatric dental",
+        393
+      ],
+      [
+        "womens health",
+        379
+      ],
+      [
+        "urgent care",
+        377
+      ]
+    ],
+    "name_stats": {
+      "min": 2,
+      "max": 123,
+      "mean": 25.2,
+      "median": 25
+    },
+    "addr_stats": {
+      "min": 0,
+      "max": 240,
+      "mean": 46.71,
+      "median": 42
+    },
+    "country_dist": [
+      [
+        "US",
+        3170056
+      ],
+      [
+        "India",
+        2115547
+      ]
+    ],
+    "total_countries": 2
+  },
+  "test_s1": {
+    "file": "data/test/test_source1.tsv",
+    "rows": 1732544,
+    "cols": [
+      "entity_id",
+      "business_name",
+      "business_address",
+      "country"
+    ],
+    "missing": {},
+    "unique_eids": 1732544,
+    "duplicate_eids": 0,
+    "unique_names": 1238244,
+    "duplicate_names_count": 494300,
+    "top_names": [
+      [
+        "bordeaux club sarl",
+        205
+      ],
+      [
+        "nantes club sarl",
+        157
+      ],
+      [
+        "lille club sarl",
+        147
+      ],
+      [
+        "urgent care group",
+        123
+      ],
+      [
+        "lille club sas",
+        122
+      ]
+    ],
+    "name_stats": {
+      "min": 3,
+      "max": 92,
+      "mean": 23.84,
+      "median": 24.0
+    },
+    "addr_stats": {
+      "min": 11,
+      "max": 268,
+      "mean": 57.21,
+      "median": 50.0
+    },
+    "country_dist": [
+      [
+        "India",
+        809986
+      ],
+      [
+        "US",
+        663106
+      ],
+      [
+        "France",
+        259452
+      ]
+    ],
+    "total_countries": 3
+  },
+  "test_s2": {
+    "file": "data/test/test_source2.tsv",
+    "rows": 4887273,
+    "cols": [
+      "entity_id",
+      "business_name",
+      "business_address",
+      "country"
+    ],
+    "missing": {
+      "business_address": 129408
+    },
+    "unique_eids": 4887273,
+    "duplicate_eids": 0,
+    "unique_names": 4207077,
+    "duplicate_names_count": 680196,
+    "top_names": [
+      [
+        "cc",
+        302
+      ],
+      [
+        "pc",
+        197
+      ],
+      [
+        "urgent care",
+        197
+      ],
+      [
+        "womens health",
+        196
+      ],
+      [
+        "lc",
+        194
+      ]
+    ],
+    "name_stats": {
+      "min": 2,
+      "max": 102,
+      "mean": 25.7,
+      "median": 25
+    },
+    "addr_stats": {
+      "min": 0,
+      "max": 269,
+      "mean": 50.41,
+      "median": 43
+    },
+    "country_dist": [
+      [
+        "India",
+        2312565
+      ],
+      [
+        "US",
+        1871330
+      ],
+      [
+        "France",
+        703378
+      ]
+    ],
+    "total_countries": 3
+  },
+  "test_s3": {
+    "file": "data/test/test_source3.tsv",
+    "rows": 5082316,
+    "cols": [
+      "entity_id",
+      "business_name",
+      "business_address",
+      "country"
+    ],
+    "missing": {
+      "business_address": 136098
+    },
+    "unique_eids": 5082316,
+    "duplicate_eids": 0,
+    "unique_names": 4446091,
+    "duplicate_names_count": 636225,
+    "top_names": [
+      [
+        "cc",
+        387
+      ],
+      [
+        "sc",
+        358
+      ],
+      [
+        "ac",
+        297
+      ],
+      [
+        "pc",
+        286
+      ],
+      [
+        "lc",
+        245
+      ]
+    ],
+    "name_stats": {
+      "min": 2,
+      "max": 103,
+      "mean": 25.66,
+      "median": 25.0
+    },
+    "addr_stats": {
+      "min": 0,
+      "max": 267,
+      "mean": 48.74,
+      "median": 43.0
+    },
+    "country_dist": [
+      [
+        "India",
+        2405000
+      ],
+      [
+        "US",
+        1945701
+      ],
+      [
+        "France",
+        731615
+      ]
+    ],
+    "total_countries": 3
+  },
+  "ground_truth": {
+    "file": "data/train/train_ground_truth.tsv",
+    "rows": 2206821,
+    "cols": [
+      "source1_entity_id",
+      "matched_entity_ids"
+    ],
+    "missing": {},
+    "unique_s1_entities": 2206821,
+    "duplicate_s1_eids": 0,
+    "total_matches": 7638365,
+    "s2_matches": 3693619,
+    "s3_matches": 3944746,
+    "zero_matches_count": 123247,
+    "single_match_count": 119157,
+    "multi_matches_count": 1964417,
+    "pct_multiple_matches": 89.02,
+    "pct_single_match": 5.4,
+    "pct_zero_matches": 5.58,
+    "min_matches": 0,
+    "max_matches": 11,
+    "mean_matches": 3.46,
+    "median_matches": 3,
+    "match_distribution": [
+      [
+        0,
+        123247
+      ],
+      [
+        1,
+        119157
+      ],
+      [
+        2,
+        375212
+      ],
+      [
+        3,
+        530841
+      ],
+      [
+        4,
+        484115
+      ],
+      [
+        5,
+        321957
+      ],
+      [
+        6,
+        164868
+      ],
+      [
+        7,
+        63968
+      ],
+      [
+        8,
+        18680
+      ],
+      [
+        9,
+        4205
+      ],
+      [
+        10,
+        534
+      ],
+      [
+        11,
+        37
+      ]
+    ]
+  }
+}
