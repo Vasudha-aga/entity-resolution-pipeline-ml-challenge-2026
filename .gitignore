@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Large data, models, and outputs (keep .gitkeep)
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+output/*
+!output/.gitkeep
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
