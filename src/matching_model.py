@@ -129,7 +129,7 @@ class EntityMatchingModel:
             "predicted_positive_pairs": int(np.sum(y_pred))
         }
 
-    def evaluate_s1_exact_match(
+    def evaluate_s1_metrics(
         self,
         pairs: List[Tuple[str, str]],
         probs: np.ndarray,
@@ -138,36 +138,70 @@ class EntityMatchingModel:
         target_s1_ids: Optional[Set[str]] = None
     ) -> Dict[str, Any]:
         """
-        Evaluate S1-level exact match rate.
+        Evaluate S1-level metrics (Precision, Recall, F0.5, F1, Exact Match Rate).
         For each S1 entity, compares the set of predicted matched candidate IDs
         against the complete ground-truth match set for that S1 entity.
         """
-        predicted_matches: Dict[str, List[str]] = {}
+        predicted_matches: Dict[str, Set[str]] = {}
         for (s1_id, cand_id), p in zip(pairs, probs):
             if p >= threshold:
                 if s1_id not in predicted_matches:
-                    predicted_matches[s1_id] = []
-                predicted_matches[s1_id].append(cand_id)
+                    predicted_matches[s1_id] = set()
+                predicted_matches[s1_id].add(cand_id)
 
         eval_s1_ids = target_s1_ids if target_s1_ids is not None else set(ground_truth.keys())
 
+        total_tp = 0
+        total_fp = 0
+        total_fn = 0
         exact_matches = 0
         total_eval_entities = len(eval_s1_ids)
 
         for s1_id in eval_s1_ids:
             true_set = set(ground_truth.get(s1_id, []))
-            pred_set = set(predicted_matches.get(s1_id, []))
+            pred_set = predicted_matches.get(s1_id, set())
+
             if true_set == pred_set:
                 exact_matches += 1
 
-        exact_match_rate = (exact_matches / total_eval_entities) * 100 if total_eval_entities > 0 else 0.0
+            tp = len(true_set & pred_set)
+            fp = len(pred_set - true_set)
+            fn = len(true_set - pred_set)
+
+            total_tp += tp
+            total_fp += fp
+            total_fn += fn
+
+        prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+        rec = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+        f05 = (1.25 * prec * rec) / (0.25 * prec + rec) if (0.25 * prec + rec) > 0 else 0.0
+        f1 = (2.0 * prec * rec) / (prec + rec) if (prec + rec) > 0 else 0.0
+        exact_match_rate = (exact_matches / total_eval_entities) * 100.0 if total_eval_entities > 0 else 0.0
 
         return {
             "total_s1_entities": total_eval_entities,
             "exact_matched_s1_entities": exact_matches,
             "s1_exact_match_rate_pct": float(exact_match_rate),
+            "s1_precision": float(prec),
+            "s1_recall": float(rec),
+            "s1_f05": float(f05),
+            "s1_f1": float(f1),
+            "s1_tp": int(total_tp),
+            "s1_fp": int(total_fp),
+            "s1_fn": int(total_fn),
             "total_predicted_links": sum(len(v) for v in predicted_matches.values())
         }
+
+    def evaluate_s1_exact_match(
+        self,
+        pairs: List[Tuple[str, str]],
+        probs: np.ndarray,
+        threshold: float,
+        ground_truth: Dict[str, List[str]],
+        target_s1_ids: Optional[Set[str]] = None
+    ) -> Dict[str, Any]:
+        """Backwards compatibility wrapper for S1 evaluation metrics."""
+        return self.evaluate_s1_metrics(pairs, probs, threshold, ground_truth, target_s1_ids)
 
     def run_threshold_experiment(
         self,
@@ -179,44 +213,48 @@ class EntityMatchingModel:
         thresholds: Optional[List[float]] = None
     ) -> Dict[str, Any]:
         """
-        Evaluate decision thresholds: [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90].
-        Selects best threshold based ONLY on validation pairwise F0.5 score.
+        Evaluate decision thresholds: [0.30 to 0.98].
+        Selects best threshold based ONLY on validation S1-level F0.5 score.
         """
         if thresholds is None:
-            thresholds = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
+            thresholds = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.92, 0.94, 0.95, 0.96, 0.97, 0.98]
 
         results = []
-        best_f05 = -1.0
+        best_s1_f05 = -1.0
         best_threshold = 0.5
 
         for t in thresholds:
             t = float(np.round(t, 2))
             y_pred = (val_probs >= t).astype(int)
             pairwise_metrics = self.evaluate_pairwise(val_y_true, y_pred)
-            s1_metrics = self.evaluate_s1_exact_match(val_pairs, val_probs, t, val_gt, val_s1_ids)
+            s1_metrics = self.evaluate_s1_metrics(val_pairs, val_probs, t, val_gt, val_s1_ids)
 
             entry = {
                 "threshold": t,
-                "precision": pairwise_metrics["precision"],
-                "recall": pairwise_metrics["recall"],
-                "f05": pairwise_metrics["f05"],
-                "f1": pairwise_metrics["f1"],
+                "s1_f05": s1_metrics["s1_f05"],
+                "s1_f1": s1_metrics["s1_f1"],
+                "s1_precision": s1_metrics["s1_precision"],
+                "s1_recall": s1_metrics["s1_recall"],
+                "s1_exact_match_rate_pct": s1_metrics["s1_exact_match_rate_pct"],
+                "pairwise_precision": pairwise_metrics["precision"],
+                "pairwise_recall": pairwise_metrics["recall"],
+                "pairwise_f05": pairwise_metrics["f05"],
+                "pairwise_f1": pairwise_metrics["f1"],
                 "tp": pairwise_metrics["tp"],
                 "fp": pairwise_metrics["fp"],
                 "fn": pairwise_metrics["fn"],
-                "s1_exact_match_rate_pct": s1_metrics["s1_exact_match_rate_pct"],
                 "predicted_matches": pairwise_metrics["predicted_positive_pairs"]
             }
             results.append(entry)
 
-            if pairwise_metrics["f05"] > best_f05:
-                best_f05 = pairwise_metrics["f05"]
+            if s1_metrics["s1_f05"] > best_s1_f05:
+                best_s1_f05 = s1_metrics["s1_f05"]
                 best_threshold = t
 
         return {
             "threshold_sweep": results,
             "best_threshold": best_threshold,
-            "best_validation_f05": best_f05
+            "best_validation_s1_f05": best_s1_f05
         }
 
     def save(self, filepath: str) -> None:

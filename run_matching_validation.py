@@ -32,7 +32,57 @@ from src.data_loader import DataLoader, Entity
 from src.validation import ValidationSplitter
 from src.normalization import TextNormalizer
 from src.features import PairwiseFeatureExtractor, NormalizedEntity
-from src.matching_model import EntityMatchingModel, RuleBasedBaseline, fbeta_score
+from src.matching_model import EntityMatchingModel, RuleBasedBaseline
+from src.blocking import CandidateGenerator, BlockingConfig
+
+
+def load_raw_s1_entities(loader: DataLoader, target_s1_ids: Set[str]) -> Dict[str, Entity]:
+    """Load raw S1 Entity objects for requested target S1 IDs."""
+    s1_file = loader.get_file_path("train", "source1")
+    s1_entities: Dict[str, Entity] = {}
+    with open(s1_file, "r", encoding="utf-8", errors="replace") as f:
+        reader = csv.reader(f, delimiter="\t")
+        _ = next(reader, None)
+        for row in reader:
+            if not row:
+                continue
+            eid = row[0].strip()
+            if eid in target_s1_ids:
+                s1_entities[eid] = Entity.from_row(row)
+                if len(s1_entities) >= len(target_s1_ids):
+                    break
+    return s1_entities
+
+
+def generate_blocking_candidate_pairs(
+    s1_entities: Dict[str, Entity],
+    candidate_generator: CandidateGenerator
+) -> List[Tuple[str, str]]:
+    """
+    Generate candidate pairs using Ashwika's CandidateGenerator.
+    GROUND TRUTH IS NEVER CONSULTED DURING CANDIDATE GENERATION.
+    Returns candidate pairs [(s1_id, candidate_id), ...].
+    """
+    pairs: List[Tuple[str, str]] = []
+    for s1_id, s1_entity in s1_entities.items():
+        s2_cands, s3_cands = candidate_generator.generate_candidates(s1_entity)
+        for cand_id in s2_cands:
+            pairs.append((s1_id, cand_id))
+        for cand_id in s3_cands:
+            pairs.append((s1_id, cand_id))
+    return pairs
+
+
+def assign_ground_truth_labels(
+    pairs: List[Tuple[str, str]],
+    gt_mapping: Dict[str, List[str]]
+) -> np.ndarray:
+    """
+    Assign binary ground truth labels to candidate pairs POST-BLOCKING.
+    label = 1 if candidate_id is in gt_mapping[s1_id] else 0.
+    """
+    labels = [1 if cand_id in gt_mapping.get(s1_id, []) else 0 for s1_id, cand_id in pairs]
+    return np.array(labels, dtype=np.int32)
 
 
 def load_normalized_entity_store(
@@ -73,8 +123,6 @@ def load_normalized_entity_store(
                 if target_s2_ids is None or eid in target_s2_ids:
                     e = Entity.from_row(row)
                     entity_store[eid] = NormalizedEntity.from_entity(e, normalizer)
-                    if target_s2_ids is not None and len(entity_store) >= (len(target_s1_ids or []) + len(target_s2_ids)):
-                        break
 
     # Stream Source 3
     if target_s3_ids is None or len(target_s3_ids) > 0:
@@ -91,37 +139,6 @@ def load_normalized_entity_store(
                     entity_store[eid] = NormalizedEntity.from_entity(e, normalizer)
 
     return entity_store
-
-
-def generate_candidate_pairs(
-    s1_ids: Set[str],
-    gt_mapping: Dict[str, List[str]],
-    all_target_cand_ids: List[str],
-    neg_ratio: int = 3,
-    seed: int = 42
-) -> Tuple[List[Tuple[str, str]], np.ndarray]:
-    """
-    Generate candidate pairs for S1 entities.
-    """
-    rng = random.Random(seed)
-    pairs: List[Tuple[str, str]] = []
-    labels: List[int] = []
-
-    for s1_id in s1_ids:
-        pos_matches = gt_mapping.get(s1_id, [])
-        for pos_id in pos_matches:
-            pairs.append((s1_id, pos_id))
-            labels.append(1)
-
-        # Sample negatives
-        n_neg = max(1, len(pos_matches) * neg_ratio)
-        sampled_negs = rng.sample(all_target_cand_ids, min(n_neg, len(all_target_cand_ids)))
-        for neg_id in sampled_negs:
-            if neg_id not in pos_matches:
-                pairs.append((s1_id, neg_id))
-                labels.append(0)
-
-    return pairs, np.array(labels, dtype=np.int32)
 
 
 def evaluate_s1_cardinality_breakdown(
@@ -343,40 +360,35 @@ def main():
         train_s1_subset = all_train_s1
         val_s1_subset = all_val_s1
 
-    print("\n2. Loading Ground Truth mapping...")
+    print("\n2. Building Ashwika Inverted Index Candidate Generator...")
+    cand_gen = CandidateGenerator(data_loader=loader, config=BlockingConfig())
+    build_times = cand_gen.build_indexes(split="train")
+    print(f"   Inverted Index Built: Source 2 in {build_times['source2']:.2f}s | Source 3 in {build_times['source3']:.2f}s")
+
+    print("\n3. Generating Candidate Pairs via Blocking (NO Ground Truth Access)...")
+    train_s1_entities = load_raw_s1_entities(loader, train_s1_subset)
+    val_s1_entities = load_raw_s1_entities(loader, val_s1_subset)
+
+    train_pairs = generate_blocking_candidate_pairs(train_s1_entities, cand_gen)
+    val_pairs = generate_blocking_candidate_pairs(val_s1_entities, cand_gen)
+
+    print("\n4. Assigning Ground Truth Labels (POST-BLOCKING ONLY)...")
     gt_mapping = loader.load_ground_truth()
     train_gt = splitter.filter_ground_truth_for_split(gt_mapping, train_s1_subset)
     val_gt = splitter.filter_ground_truth_for_split(gt_mapping, val_s1_subset)
-    print(f"   Loaded GT for {len(train_gt):,} Train S1 and {len(val_gt):,} Val S1 entities.")
 
-    # Collect needed candidate IDs
-    train_needed_cand_ids: Set[str] = set()
-    for matches in train_gt.values():
-        train_needed_cand_ids.update(matches)
+    train_y = assign_ground_truth_labels(train_pairs, gt_mapping)
+    val_y = assign_ground_truth_labels(val_pairs, gt_mapping)
 
-    val_needed_cand_ids: Set[str] = set()
-    for matches in val_gt.values():
-        val_needed_cand_ids.update(matches)
+    print(f"   Generated Train pairs: {len(train_pairs):,} (Positives: {int(np.sum(train_y)):,}, Negatives: {len(train_pairs) - int(np.sum(train_y)):,})")
+    print(f"   Generated Val pairs:   {len(val_pairs):,} (Positives: {int(np.sum(val_y)):,}, Negatives: {len(val_pairs) - int(np.sum(val_y)):,})")
 
-    print(f"   Needed Target Candidates: Train={len(train_needed_cand_ids):,} | Val={len(val_needed_cand_ids):,}")
-
-    # Build Candidate Pairs
-    print("\n3. Generating Candidate Pairs (Positives + Sampled Negatives)...")
-    train_cand_pool = list(train_needed_cand_ids)
-    val_cand_pool = list(val_needed_cand_ids)
-
-    train_pairs, train_y = generate_candidate_pairs(train_s1_subset, train_gt, train_cand_pool, neg_ratio=3, seed=42)
-    val_pairs, val_y = generate_candidate_pairs(val_s1_subset, val_gt, val_cand_pool, neg_ratio=3, seed=42)
-
-    print(f"   Generated Train pairs: {len(train_pairs):,} (Positives: {int(np.sum(train_y)):,})")
-    print(f"   Generated Val pairs:   {len(val_pairs):,} (Positives: {int(np.sum(val_y)):,})")
-
-    # Load normalized entities
+    # Load normalized entities for extracted pairs
     needed_s1 = train_s1_subset.union(val_s1_subset)
-    needed_s2 = {c for c in train_needed_cand_ids.union(val_needed_cand_ids) if c.startswith("S2-")}
-    needed_s3 = {c for c in train_needed_cand_ids.union(val_needed_cand_ids) if c.startswith("S3-")}
+    needed_s2 = {pair[1] for pair in train_pairs + val_pairs if pair[1].startswith("S2-")}
+    needed_s3 = {pair[1] for pair in train_pairs + val_pairs if pair[1].startswith("S3-")}
 
-    print("\n4. Loading & Pre-normalizing Entities into Memory Store...")
+    print("\n5. Loading & Pre-normalizing Entities into Memory Store...")
     entity_store = load_normalized_entity_store(
         loader,
         normalizer,
@@ -387,7 +399,7 @@ def main():
     print(f"   Normalized entity store built: {len(entity_store):,} entities.")
 
     # Extract Features
-    print("\n5. Extracting Pairwise Features (25 dimensions)...")
+    print("\n6. Extracting Pairwise Features (25 dimensions)...")
     X_train, valid_train_pairs = extractor.extract_batch_features(train_pairs, entity_store)
     X_val, valid_val_pairs = extractor.extract_batch_features(val_pairs, entity_store)
 
@@ -395,7 +407,7 @@ def main():
     print(f"   Feature Matrix X_val:   shape={X_val.shape}, dtype={X_val.dtype}")
 
     # Rule-Based Baseline Benchmark
-    print("\n6. Evaluating RuleBasedBaseline Benchmark...")
+    print("\n7. Evaluating RuleBasedBaseline Benchmark...")
     rule_baseline = RuleBasedBaseline()
     rule_val_probs = rule_baseline.predict_proba(X_val)
     rule_val_pred = (rule_val_probs >= 0.50).astype(int)
@@ -404,38 +416,38 @@ def main():
     print(f"   RuleBasedBaseline Benchmark: Precision={rule_metrics['precision']:.4f}, Recall={rule_metrics['recall']:.4f}, F0.5={rule_metrics['f05']:.4f}")
 
     # Train Model
-    print("\n7. Training EntityMatchingModel (LogisticRegression + StandardScaler)...")
+    print("\n8. Training EntityMatchingModel (LogisticRegression + StandardScaler)...")
     model = EntityMatchingModel(C=1.0, class_weight="balanced", random_state=42)
     model.fit(X_train, train_y)
     print("   Model training complete.")
 
     # Predict Validation Probabilities
-    print("\n8. Predicting Validation Probabilities...")
+    print("\n9. Predicting Validation Probabilities...")
     val_probs = model.predict_proba(X_val)
 
     # Threshold Experiments
-    print("\n9. Running Threshold Experiments (0.30 to 0.90)...")
+    print("\n10. Running Threshold Experiments (Selecting by Validation S1-level F0.5)...")
     exp_results = model.run_threshold_experiment(
         val_pairs=valid_val_pairs,
         val_probs=val_probs,
         val_y_true=val_y,
         val_gt=val_gt,
         val_s1_ids=val_s1_subset,
-        thresholds=[0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
+        thresholds=[0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.92, 0.94, 0.95, 0.96, 0.97, 0.98]
     )
 
     best_t = exp_results["best_threshold"]
-    best_f05 = exp_results["best_validation_f05"]
-    print(f"   Optimal Threshold: {best_t:.2f} | Best Validation Pairwise F0.5: {best_f05:.4f}")
+    best_s1_f05 = exp_results["best_validation_s1_f05"]
+    print(f"   Optimal Threshold: {best_t:.2f} | Best Validation S1-level F0.5: {best_s1_f05:.4f}")
 
     # Final Validation Evaluation at Best Threshold
     val_y_pred = (val_probs >= best_t).astype(int)
     val_pairwise = model.evaluate_pairwise(val_y, val_y_pred)
-    val_s1_exact = model.evaluate_s1_exact_match(valid_val_pairs, val_probs, best_t, val_gt, val_s1_subset)
+    val_s1_metrics = model.evaluate_s1_metrics(valid_val_pairs, val_probs, best_t, val_gt, val_s1_subset)
     cardinality_breakdown = evaluate_s1_cardinality_breakdown(valid_val_pairs, val_probs, best_t, val_gt, val_s1_subset)
 
     # Error Analysis
-    print("\n10. Performing Error Analysis with Categorical Tagging...")
+    print("\n11. Performing Error Analysis with Categorical Tagging...")
     error_analysis = run_error_analysis(valid_val_pairs, val_y, val_probs, best_t, entity_store)
 
     # Compile Final Report
@@ -452,15 +464,24 @@ def main():
         "rule_based_baseline_metrics": rule_metrics,
         "threshold_experiment": exp_results,
         "best_threshold": best_t,
-        "validation_metrics": {
+        "s1_level_metrics": {
+            "s1_precision": val_s1_metrics["s1_precision"],
+            "s1_recall": val_s1_metrics["s1_recall"],
+            "s1_f05": val_s1_metrics["s1_f05"],
+            "s1_f1": val_s1_metrics["s1_f1"],
+            "s1_tp": val_s1_metrics["s1_tp"],
+            "s1_fp": val_s1_metrics["s1_fp"],
+            "s1_fn": val_s1_metrics["s1_fn"],
+            "s1_exact_match_rate_pct": val_s1_metrics["s1_exact_match_rate_pct"],
+            "exact_matched_s1_entities": val_s1_metrics["exact_matched_s1_entities"],
+            "total_eval_s1_entities": val_s1_metrics["total_s1_entities"]
+        },
+        "pairwise_diagnostic_metrics": {
             "pairwise_precision": val_pairwise["precision"],
             "pairwise_recall": val_pairwise["recall"],
             "pairwise_f05": val_pairwise["f05"],
             "pairwise_f1": val_pairwise["f1"],
-            "confusion_matrix": val_pairwise["confusion_matrix"],
-            "s1_exact_match_rate_pct": val_s1_exact["s1_exact_match_rate_pct"],
-            "exact_matched_s1_entities": val_s1_exact["exact_matched_s1_entities"],
-            "total_eval_s1_entities": val_s1_exact["total_s1_entities"]
+            "confusion_matrix": val_pairwise["confusion_matrix"]
         },
         "s1_cardinality_breakdown": cardinality_breakdown,
         "error_analysis": error_analysis
@@ -475,18 +496,22 @@ def main():
 
     # Print Report Summary
     print("\n=================== VALIDATION RESULTS SUMMARY ===================")
-    print(f"RuleBasedBaseline Benchmark F0.5:  {rule_metrics['f05']:.4f}")
-    print(f"Optimal Logistic Regression Threshold: {best_t:.2f}")
-    print(f"Pairwise Precision:               {val_pairwise['precision']:.4f}")
-    print(f"Pairwise Recall:                  {val_pairwise['recall']:.4f}")
-    print(f"Pairwise F0.5-Score (Official):   {val_pairwise['f05']:.4f}")
-    print(f"Pairwise F1-Score:                {val_pairwise['f1']:.4f}")
-    print(f"S1 Exact Match Rate:              {val_s1_exact['s1_exact_match_rate_pct']:.2f}% ({val_s1_exact['exact_matched_s1_entities']:,} / {val_s1_exact['total_s1_entities']:,})")
+    print(f"RuleBasedBaseline Benchmark F0.5:     {rule_metrics['f05']:.4f}")
+    print(f"Optimal Threshold (S1-level F0.5):    {best_t:.2f}")
+    print(f"S1-level F0.5 Score (OFFICIAL TARGET): {val_s1_metrics['s1_f05']:.4f}")
+    print(f"S1-level F1 Score:                    {val_s1_metrics['s1_f1']:.4f}")
+    print(f"S1-level Precision:                   {val_s1_metrics['s1_precision']:.4f}")
+    print(f"S1-level Recall:                      {val_s1_metrics['s1_recall']:.4f}")
+    print(f"S1 Exact Match Rate:                 {val_s1_metrics['s1_exact_match_rate_pct']:.2f}% ({val_s1_metrics['exact_matched_s1_entities']:,} / {val_s1_metrics['total_s1_entities']:,})")
+    print(f"Pairwise Precision (Diagnostic):     {val_pairwise['precision']:.4f}")
+    print(f"Pairwise Recall (Diagnostic):        {val_pairwise['recall']:.4f}")
+    print(f"Pairwise F0.5 (Diagnostic):          {val_pairwise['f05']:.4f}")
+    print(f"Pairwise F1 (Diagnostic):            {val_pairwise['f1']:.4f}")
     print(f"Cardinality Breakdown:")
-    print(f"  - zero-match S1 entities:       {cardinality_breakdown['zero-match']['exact_match_rate_pct']:.2f}% ({cardinality_breakdown['zero-match']['exact_matches']}/{cardinality_breakdown['zero-match']['total_entities']})")
-    print(f"  - single-match S1 entities:     {cardinality_breakdown['single-match']['exact_match_rate_pct']:.2f}% ({cardinality_breakdown['single-match']['exact_matches']}/{cardinality_breakdown['single-match']['total_entities']})")
-    print(f"  - multi-match S1 entities:      {cardinality_breakdown['multi-match']['exact_match_rate_pct']:.2f}% ({cardinality_breakdown['multi-match']['exact_matches']}/{cardinality_breakdown['multi-match']['total_entities']})")
-    print(f"Error Categories Breakdown:        {error_analysis['summary']['error_category_counts']}")
+    print(f"  - zero-match S1 entities:          {cardinality_breakdown['zero-match']['exact_match_rate_pct']:.2f}% ({cardinality_breakdown['zero-match']['exact_matches']}/{cardinality_breakdown['zero-match']['total_entities']})")
+    print(f"  - single-match S1 entities:        {cardinality_breakdown['single-match']['exact_match_rate_pct']:.2f}% ({cardinality_breakdown['single-match']['exact_matches']}/{cardinality_breakdown['single-match']['total_entities']})")
+    print(f"  - multi-match S1 entities:         {cardinality_breakdown['multi-match']['exact_match_rate_pct']:.2f}% ({cardinality_breakdown['multi-match']['exact_matches']}/{cardinality_breakdown['multi-match']['total_entities']})")
+    print(f"Error Categories Breakdown:           {error_analysis['summary']['error_category_counts']}")
     print("==================================================================\n")
 
 
