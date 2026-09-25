@@ -1,0 +1,4 @@
+experiment_id,validation_s1_count,candidate_count,positive_count,negative_count,threshold,precision,recall,f0_5,f1,tp,fp,fn,s1_exact_match_rate,runtime_seconds
+Experiment A,1000,24243,2683,21560,0.9,0.994,0.9866,0.9925,0.9903,2647,16,36,53.5,315.1
+Experiment B,5000,130889,12696,118193,0.9,0.9873,0.9856,0.987,0.9864,12513,161,183,47.62,500.96
+Experiment C,10000,259288,23880,235408,0.9,0.9857,0.9835,0.9853,0.9846,23485,340,395,44.2,816.22
