@@ -1,36 +1,44 @@
 # Python
 __pycache__/
+*.py[cod]
 *.pyc
-.venv/
+*$py.class
+*.so
+.Python
+env/
 venv/
+.venv/
+ENV/
 .env
 
-# IDE
-.vscode/
-.idea/
+# Jupyter Notebooks
+.ipynb_checkpoints
+.ipynb_checkpoints/
 
 # Models
+models/*
+!models/.gitkeep
 models/*.pkl
 models/*.joblib
 models/*.bin
 models/*.pt
 models/*.pth
-!models/.gitkeep
 
 # Large raw datasets
 data/*
 !data/.gitkeep
+data/
 
 # Outputs
 output/*
 !output/.gitkeep
+output/
 
 # Logs
 *.log
 
-# Jupyter
-.ipynb_checkpoints/
-
-# OS
+# IDE and OS files
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
