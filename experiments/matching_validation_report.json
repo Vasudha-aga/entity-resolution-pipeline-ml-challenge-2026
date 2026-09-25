@@ -1,0 +1,284 @@
+{
+  "mode": "SMOKE TEST",
+  "sample_counts": {
+    "train_s1_entities": 2000,
+    "val_s1_entities": 500,
+    "train_pairs": 27761,
+    "val_pairs": 6726
+  },
+  "feature_list": [
+    "name_exact_match",
+    "name_token_jaccard",
+    "name_token_dice",
+    "name_token_overlap",
+    "name_char_3gram_jaccard",
+    "name_jaro_winkler",
+    "name_levenshtein_sim",
+    "name_prefix_match",
+    "name_length_ratio",
+    "name_len_diff",
+    "s1_name_missing",
+    "cand_name_missing",
+    "addr_exact_match",
+    "addr_token_jaccard",
+    "addr_token_overlap",
+    "addr_char_3gram_jaccard",
+    "addr_numeric_overlap",
+    "addr_len_diff",
+    "s1_addr_missing",
+    "cand_addr_missing",
+    "both_addr_missing",
+    "name_addr_combined_match",
+    "country_exact_match",
+    "is_s2",
+    "is_s3"
+  ],
+  "num_features": 25,
+  "rule_based_baseline_metrics": {
+    "precision": 1.0,
+    "recall": 0.5295169946332737,
+    "f05": 0.8491107286288009,
+    "f1": 0.6923976608187135,
+    "confusion_matrix": {
+      "tn": 5049,
+      "fp": 0,
+      "fn": 789,
+      "tp": 888
+    },
+    "tp": 888,
+    "fp": 0,
+    "fn": 789,
+    "tn": 5049,
+    "total_pairs": 6726,
+    "positive_pairs": 1677,
+    "predicted_positive_pairs": 888
+  },
+  "threshold_experiment": {
+    "threshold_sweep": [
+      {
+        "threshold": 0.3,
+        "precision": 0.9928909952606635,
+        "recall": 0.9994036970781157,
+        "f05": 0.9941867362676474,
+        "f1": 0.9961367013372957,
+        "tp": 1676,
+        "fp": 12,
+        "fn": 1,
+        "s1_exact_match_rate_pct": 97.39999999999999,
+        "predicted_matches": 1688
+      },
+      {
+        "threshold": 0.4,
+        "precision": 0.9940688018979834,
+        "recall": 0.9994036970781157,
+        "f05": 0.9951312195701223,
+        "f1": 0.9967291109128754,
+        "tp": 1676,
+        "fp": 10,
+        "fn": 1,
+        "s1_exact_match_rate_pct": 97.8,
+        "predicted_matches": 1686
+      },
+      {
+        "threshold": 0.5,
+        "precision": 0.9946587537091988,
+        "recall": 0.9994036970781157,
+        "f05": 0.9956041344897232,
+        "f1": 0.9970255800118977,
+        "tp": 1676,
+        "fp": 9,
+        "fn": 1,
+        "s1_exact_match_rate_pct": 98.0,
+        "predicted_matches": 1685
+      },
+      {
+        "threshold": 0.6,
+        "precision": 0.995249406175772,
+        "recall": 0.9994036970781157,
+        "f05": 0.9960774991085225,
+        "f1": 0.9973222255281167,
+        "tp": 1676,
+        "fp": 8,
+        "fn": 1,
+        "s1_exact_match_rate_pct": 98.2,
+        "predicted_matches": 1684
+      },
+      {
+        "threshold": 0.7,
+        "precision": 0.9964328180737217,
+        "recall": 0.9994036970781157,
+        "f05": 0.9970255800118977,
+        "f1": 0.9979160464423936,
+        "tp": 1676,
+        "fp": 6,
+        "fn": 1,
+        "s1_exact_match_rate_pct": 98.6,
+        "predicted_matches": 1682
+      },
+      {
+        "threshold": 0.8,
+        "precision": 0.9970238095238095,
+        "recall": 0.9988073941562313,
+        "f05": 0.9973800166726212,
+        "f1": 0.9979148048853143,
+        "tp": 1675,
+        "fp": 5,
+        "fn": 2,
+        "s1_exact_match_rate_pct": 98.6,
+        "predicted_matches": 1680
+      },
+      {
+        "threshold": 0.9,
+        "precision": 0.9970220369267421,
+        "recall": 0.998211091234347,
+        "f05": 0.9972596211128322,
+        "f1": 0.9976162097735399,
+        "tp": 1674,
+        "fp": 5,
+        "fn": 3,
+        "s1_exact_match_rate_pct": 98.4,
+        "predicted_matches": 1679
+      }
+    ],
+    "best_threshold": 0.8,
+    "best_validation_f05": 0.9973800166726212
+  },
+  "best_threshold": 0.8,
+  "validation_metrics": {
+    "pairwise_precision": 0.9970238095238095,
+    "pairwise_recall": 0.9988073941562313,
+    "pairwise_f05": 0.9973800166726212,
+    "pairwise_f1": 0.9979148048853143,
+    "confusion_matrix": {
+      "tn": 5044,
+      "fp": 5,
+      "fn": 2,
+      "tp": 1675
+    },
+    "s1_exact_match_rate_pct": 98.6,
+    "exact_matched_s1_entities": 493,
+    "total_eval_s1_entities": 500
+  },
+  "s1_cardinality_breakdown": {
+    "zero-match": {
+      "total_entities": 35,
+      "exact_matches": 35,
+      "exact_match_rate_pct": 100.0
+    },
+    "single-match": {
+      "total_entities": 28,
+      "exact_matches": 27,
+      "exact_match_rate_pct": 96.43
+    },
+    "multi-match": {
+      "total_entities": 437,
+      "exact_matches": 431,
+      "exact_match_rate_pct": 98.63
+    }
+  },
+  "error_analysis": {
+    "summary": {
+      "total_false_positives": 5,
+      "total_false_negatives": 2,
+      "error_category_counts": {
+        "uncategorized": 2,
+        "generic_name": 5
+      }
+    },
+    "top_false_positives_sample": [
+      {
+        "s1_id": "S1-100908606",
+        "cand_id": "S2-384347241",
+        "s1_name": "Seven Tech Pvt Ltd",
+        "cand_name": "\u0907\u0928\u094b\u0935\u0947\u091f\u093f\u0935 \u091f\u0947\u0915\u094d\u0928\u094b\u0932\u0949\u091c\u0940\u091c \u092a\u094d\u0930\u093e\u0907\u0935\u0947\u091f \u0932\u093f\u092e\u093f\u091f\u0947\u0921",
+        "s1_addr": "H-30, Plot No-6&7, Third Floor, Gulshan Park, Vijay Chowk, Laxmi Nagar, East Delhi, Delhi",
+        "cand_addr": "G-6, EAST, \u0926\u093f\u0932\u094d\u0932\u0940",
+        "s1_country": "india",
+        "cand_country": "india",
+        "predicted_prob": 0.9944999814033508,
+        "error_category": "generic_name",
+        "threshold": 0.8
+      },
+      {
+        "s1_id": "S1-10001887",
+        "cand_id": "S3-397417822",
+        "s1_name": "Tejasvi Communications Private Limited",
+        "cand_name": "Coastal Service Pvt",
+        "s1_addr": "301 Shree Vinayak Parkopp Amrai Police Chowki Gavli Nagar, Than, Mumbai, Maharashtra",
+        "cand_addr": "7/3/6, Mumbai, \u092e\u0939\u093e\u0930\u093e\u0937\u094d\u091f\u094d\u0930",
+        "s1_country": "india",
+        "cand_country": "india",
+        "predicted_prob": 0.9871000051498413,
+        "error_category": "uncategorized",
+        "threshold": 0.8
+      },
+      {
+        "s1_id": "S1-100994848",
+        "cand_id": "S2-702546787",
+        "s1_name": "Jacob Diagnostic Pvt Ltd",
+        "cand_name": "\u0c38\u0c42\u0c2a\u0c30\u0c4d \u0c2a\u0c4d\u0c30\u0c4a\u0c21\u0c15\u0c4d\u0c1f\u0c4d\u0c38\u0c4d \u0c2a\u0c4d\u0c30\u0c48\u0c35\u0c47\u0c1f\u0c4d \u0c32\u0c3f\u0c2e\u0c3f\u0c1f\u0c46\u0c21\u0c4d",
+        "s1_addr": "H.No.3-7-62/183, Plot No.183, Road No.9, Hayathnagar, K.V.Rangareddy, Telangana",
+        "cand_addr": "H NO. 1-253, RANGAREDDY, HYDERABAD, Telangana",
+        "s1_country": "india",
+        "cand_country": "india",
+        "predicted_prob": 0.979200005531311,
+        "error_category": "generic_name",
+        "threshold": 0.8
+      },
+      {
+        "s1_id": "S1-100495343",
+        "cand_id": "S3-262879473",
+        "s1_name": "Mf & Co",
+        "cand_name": "Diamond &",
+        "s1_addr": "Okhla Industrial Area, Phase 2, New Delhi, X-17, Delhi, South Delhi",
+        "cand_addr": "#2Nd Floro, Mathura, South Delhi, DL",
+        "s1_country": "india",
+        "cand_country": "india",
+        "predicted_prob": 0.9621000289916992,
+        "error_category": "generic_name",
+        "threshold": 0.8
+      },
+      {
+        "s1_id": "S1-100830707",
+        "cand_id": "S3-257038966",
+        "s1_name": "Banerjee India Limited",
+        "cand_name": "\u0905\u0930\u094d\u092c\u0928 \u092a\u094d\u0930\u094b\u0921\u094d\u092f\u0942\u0938\u0930 \u092a\u094d\u0930\u093e\u0907\u0935\u0947\u091f \u0932\u093f\u092e\u093f\u091f\u0947\u0921",
+        "s1_addr": "206Madhuban 55 Nehru Place, New Delhi, South Delhi, Delhi",
+        "cand_addr": "C-1/c, New Delhi, West Delhi, DL",
+        "s1_country": "india",
+        "cand_country": "india",
+        "predicted_prob": 0.9449999928474426,
+        "error_category": "generic_name",
+        "threshold": 0.8
+      }
+    ],
+    "top_false_negatives_sample": [
+      {
+        "s1_id": "S1-100033015",
+        "cand_id": "S2-384347241",
+        "s1_name": "Innovative Technologies Private Limited",
+        "cand_name": "\u0907\u0928\u094b\u0935\u0947\u091f\u093f\u0935 \u091f\u0947\u0915\u094d\u0928\u094b\u0932\u0949\u091c\u0940\u091c \u092a\u094d\u0930\u093e\u0907\u0935\u0947\u091f \u0932\u093f\u092e\u093f\u091f\u0947\u0921",
+        "s1_addr": "G-6, Kh No. 62/10, Shiv Ram Park, New Delhi, West Delhi, Delhi",
+        "cand_addr": "G-6, EAST, \u0926\u093f\u0932\u094d\u0932\u0940",
+        "s1_country": "india",
+        "cand_country": "india",
+        "predicted_prob": 0.00019999999494757503,
+        "error_category": "generic_name",
+        "threshold": 0.8
+      },
+      {
+        "s1_id": "S1-100654505",
+        "cand_id": "S3-594077874",
+        "s1_name": "Sree Properties Private Limited",
+        "cand_name": "Smt Sree Private Limited Center",
+        "s1_addr": "Ugb-73, Phoenix Paragon Plaza, Off Lbs Marg, Kurla Kamani Junction, Kurla (W), Mumbai, Maharashtra",
+        "cand_addr": "Bombay, Plot 0475 Ugb-73, Greater Bombay, MH",
+        "s1_country": "india",
+        "cand_country": "india",
+        "predicted_prob": 0.7335000038146973,
+        "error_category": "uncategorized",
+        "threshold": 0.8
+      }
+    ]
+  }
+}
