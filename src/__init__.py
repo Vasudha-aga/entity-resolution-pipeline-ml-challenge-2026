@@ -19,5 +19,22 @@ __all__ = [
     "normalize_address",
     "tokenize_business_name",
     "extract_address_tokens",
-    "TextNormalizer"
+    "TextNormalizer",
+    "BlockingConfig",
+    "TargetIndex",
+    "CandidateGenerator",
+    "build_exact_name_country_key",
+    "build_distinctive_token_country_keys",
+    "build_name_prefix_country_key",
+    "build_name_address_keys"
 ]
+
+from src.blocking import (
+    BlockingConfig,
+    TargetIndex,
+    CandidateGenerator,
+    build_exact_name_country_key,
+    build_distinctive_token_country_keys,
+    build_name_prefix_country_key,
+    build_name_address_keys
+)
