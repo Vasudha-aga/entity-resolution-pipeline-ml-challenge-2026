@@ -6,6 +6,8 @@ Supports:
 - Pass 2 (B2): Distinctive Business Name Token + Country (with frequency pruning)
 - Pass 3 (B3): Character Prefix (N-gram) + Country
 - Pass 4 (B4): Name Token + Address/Locality (Additive pass)
+- Pass 5A (B5-A): Building/House Number + Distinctive Locality/Address Token + Country (Address-only)
+- Pass 5B (B5-B): Two Distinctive Non-Generic Address Tokens + Country (Address-only)
 
 Uses compact array.array('I') posting lists to minimize resident memory.
 """
@@ -23,16 +25,29 @@ from src.normalization import (
     extract_address_tokens
 )
 
+# Standard generic address stopwords/markers to exclude from distinctive token pairs
+DEFAULT_GENERIC_ADDR_TOKENS: Set[str] = {
+    "road", "rd", "street", "st", "drive", "dr", "avenue", "ave", "lane", "ln",
+    "unit", "floor", "fl", "suite", "ste", "apt", "apartment", "null", "box",
+    "po", "no", "near", "opp", "opposite", "behind", "phase", "plot", "sector",
+    "flat", "block", "house", "hno", "kh", "door", "st", "nd", "rd", "th",
+    "east", "west", "north", "south", "city", "nagar", "colony", "bhavan",
+    "complex", "building", "tower", "plaza", "market", "bazaar", "center", "centre",
+    "delhi", "mumbai", "india", "state", "dist", "district", "post", "extn", "extension"
+}
+
 
 @dataclass
 class BlockingConfig:
     """Configuration parameters for blocking passes."""
     enabled_passes: List[str] = field(
         default_factory=lambda: [
-            "exact_name_country",
-            "distinctive_token_country",
-            "name_prefix_country",
-            "name_token_address"
+            "exact_name_country",            # B1
+            "distinctive_token_country",     # B2
+            "name_prefix_country",           # B3
+            "name_token_address",            # B4
+            "address_number_locality",       # B5-A
+            "address_distinctive_pair"        # B5-B
         ]
     )
     chunk_size: int = 100000
@@ -44,6 +59,11 @@ class BlockingConfig:
     b4_addr_min_len: int = 4  # Minimum address token length for Pass 4 (B4)
     b4_max_name_tokens: int = 2  # Up to first N name tokens in B4
     b4_max_addr_tokens: int = 3  # Up to first N address tokens in B4
+    b5a_max_nums: int = 2  # Up to first N numeric/building tokens for Pass 5A (B5-A)
+    b5a_max_toks: int = 3  # Up to first N distinctive locality tokens for Pass 5A (B5-A)
+    b5b_max_toks: int = 4  # Up to first N distinctive tokens for pairwise combinations in Pass 5B (B5-B)
+    max_b5_doc_frequency: int = 500  # Pruning threshold for high-frequency generic keys in B5
+    generic_addr_tokens: Set[str] = field(default_factory=lambda: set(DEFAULT_GENERIC_ADDR_TOKENS))
 
 
 def build_exact_name_country_key(name: Optional[str], country: Optional[str]) -> str:
@@ -160,12 +180,107 @@ def build_name_address_keys(
     return keys
 
 
+def build_b5a_keys(
+    address: Optional[str],
+    country: Optional[str],
+    max_nums: int = 2,
+    max_toks: int = 3,
+    generic_tokens: Optional[Set[str]] = None
+) -> List[str]:
+    """
+    Construct Pass 5A (B5-A) blocking keys:
+    Building/House Number + Distinctive Locality/Address Token + Country.
+    
+    Example: 'b5_num_68_rtnagar___india'
+    
+    Requirements:
+    - Never uses business name.
+    - Preserves numeric and alphanumeric building tokens (e.g. '68', '273', '196a', 'cc54').
+    - Excludes generic address stopwords from distinctive tokens.
+    - Preserves country as part of the key.
+    """
+    if not address or not isinstance(address, str) or not address.strip():
+        return []
+
+    generic_set = generic_tokens if generic_tokens is not None else DEFAULT_GENERIC_ADDR_TOKENS
+    norm_country = country.strip().lower() if country and isinstance(country, str) else ""
+    tokens = extract_address_tokens(address, min_token_len=2)
+    if not tokens:
+        return []
+
+    num_tokens: List[str] = []
+    distinctive_tokens: List[str] = []
+
+    for t in tokens:
+        if t.isdigit() or (len(t) >= 2 and any(c.isdigit() for c in t) and any(c.isalpha() for c in t)):
+            if t not in num_tokens:
+                num_tokens.append(t)
+        elif len(t) >= 3 and t not in generic_set:
+            if t not in distinctive_tokens:
+                distinctive_tokens.append(t)
+
+    selected_nums = num_tokens[:max_nums]
+    selected_toks = distinctive_tokens[:max_toks]
+
+    keys: List[str] = []
+    for num in selected_nums:
+        for tok in selected_toks:
+            keys.append(f"b5_num_{num}_{tok}___{norm_country}")
+    return keys
+
+
+def build_b5b_keys(
+    address: Optional[str],
+    country: Optional[str],
+    max_toks: int = 4,
+    generic_tokens: Optional[Set[str]] = None
+) -> List[str]:
+    """
+    Construct Pass 5B (B5-B) blocking keys:
+    Two Distinctive Non-Generic Address Tokens + Country.
+    
+    Example: 'b5_pair_beturkar_pada___india'
+    
+    Requirements:
+    - Never uses business name.
+    - Extracts non-generic, non-purely numeric address tokens of length >= 3.
+    - Excludes generic address stopwords.
+    - Generates sorted pairs across top `max_toks` distinctive tokens.
+    - Preserves country as part of the key.
+    """
+    if not address or not isinstance(address, str) or not address.strip():
+        return []
+
+    generic_set = generic_tokens if generic_tokens is not None else DEFAULT_GENERIC_ADDR_TOKENS
+    norm_country = country.strip().lower() if country and isinstance(country, str) else ""
+    tokens = extract_address_tokens(address, min_token_len=3)
+    if not tokens:
+        return []
+
+    distinctive_tokens: List[str] = []
+    for t in tokens:
+        if t not in generic_set and not t.isdigit():
+            if t not in distinctive_tokens:
+                distinctive_tokens.append(t)
+
+    selected = distinctive_tokens[:max_toks]
+    if len(selected) < 2:
+        return []
+
+    keys: List[str] = []
+    for i in range(len(selected)):
+        for j in range(i + 1, len(selected)):
+            t1, t2 = sorted([selected[i], selected[j]])
+            keys.append(f"b5_pair_{t1}_{t2}___{norm_country}")
+    return keys
+
+
 class TargetIndex:
     """
     Inverted index for a single target candidate source (Source 2 or Source 3).
     
     Stores entity IDs in an integer-indexed master list and maps
-    blocking keys across passes B1, B2, B3, and B4 to compact array.array('I') posting lists.
+    blocking keys across passes B1, B2, B3, B4, B5-A, and B5-B to compact array.array('I') posting lists.
     """
 
     def __init__(self, source_name: str, config: Optional[BlockingConfig] = None):
@@ -178,10 +293,17 @@ class TargetIndex:
         self.b2_index: Dict[str, array.array] = defaultdict(lambda: array.array('I'))
         self.b3_index: Dict[str, array.array] = defaultdict(lambda: array.array('I'))
         self.b4_index: Dict[str, array.array] = defaultdict(lambda: array.array('I'))
+        self.b5a_index: Dict[str, array.array] = defaultdict(lambda: array.array('I'))
+        self.b5b_index: Dict[str, array.array] = defaultdict(lambda: array.array('I'))
         self.index = self.b1_index  # Backward-compatibility alias for B1-only access
         
-        # Track pruned high-frequency tokens in B2
+        # Track pruned high-frequency keys
         self.pruned_b2_keys: Dict[str, int] = {}
+        self.pruned_b5a_keys: Dict[str, int] = {}
+        self.pruned_b5b_keys: Dict[str, int] = {}
+        
+        # Lightweight raw entity store for fast chunk-scoped feature extraction
+        self.entity_store_raw: Dict[str, Tuple[str, str, str]] = {}
         
         # Track missing address statistics
         self.missing_address_count: int = 0
@@ -191,13 +313,27 @@ class TargetIndex:
         Streamingly ingest a batch of entities from DataLoader.
         
         Assigns sequential integer indices and updates the inverted indexes.
-        Full Entity objects are NOT retained in memory.
+        Stores compact raw (name, address, country) tuples for O(1) lookup.
         """
         base_idx = len(self.entity_ids)
-        enable_b1 = "exact_name_country" in self.config.enabled_passes
-        enable_b2 = "distinctive_token_country" in self.config.enabled_passes
-        enable_b3 = "name_prefix_country" in self.config.enabled_passes
-        enable_b4 = "name_token_address" in self.config.enabled_passes
+        enabled = set(self.config.enabled_passes)
+        
+        enable_b1 = "exact_name_country" in enabled or "b1" in enabled
+        enable_b2 = "distinctive_token_country" in enabled or "b2" in enabled
+        enable_b3 = "name_prefix_country" in enabled or "b3" in enabled
+        enable_b4 = "name_token_address" in enabled or "b4" in enabled
+        enable_b5a = (
+            "address_number_locality" in enabled
+            or "b5a" in enabled
+            or "b5_a" in enabled
+            or "b5a_num_locality_country" in enabled
+        )
+        enable_b5b = (
+            "address_distinctive_pair" in enabled
+            or "b5b" in enabled
+            or "b5_b" in enabled
+            or "b5b_distinctive_pair_country" in enabled
+        )
 
         b2_min_len = self.config.min_token_len
         prefix_len = self.config.prefix_len
@@ -205,10 +341,19 @@ class TargetIndex:
         b4_addr_min = self.config.b4_addr_min_len
         b4_max_name = self.config.b4_max_name_tokens
         b4_max_addr = self.config.b4_max_addr_tokens
+        b5a_max_nums = self.config.b5a_max_nums
+        b5a_max_toks = self.config.b5a_max_toks
+        b5b_max_toks = self.config.b5b_max_toks
+        generic_tokens = self.config.generic_addr_tokens
 
         for i, entity in enumerate(entities):
             idx = base_idx + i
             self.entity_ids.append(entity.entity_id)
+            self.entity_store_raw[entity.entity_id] = (
+                entity.business_name,
+                entity.business_address,
+                entity.country
+            )
 
             if not entity.business_address or not entity.business_address.strip():
                 self.missing_address_count += 1
@@ -252,6 +397,29 @@ class TargetIndex:
                 for k in keys_b4:
                     self.b4_index[k].append(idx)
 
+            # Pass 5A (B5-A): Building/House Number + Distinctive Locality Token + Country
+            if enable_b5a:
+                keys_b5a = build_b5a_keys(
+                    entity.business_address,
+                    entity.country,
+                    max_nums=b5a_max_nums,
+                    max_toks=b5a_max_toks,
+                    generic_tokens=generic_tokens
+                )
+                for k in keys_b5a:
+                    self.b5a_index[k].append(idx)
+
+            # Pass 5B (B5-B): Two Distinctive Non-Generic Address Tokens + Country
+            if enable_b5b:
+                keys_b5b = build_b5b_keys(
+                    entity.business_address,
+                    entity.country,
+                    max_toks=b5b_max_toks,
+                    generic_tokens=generic_tokens
+                )
+                for k in keys_b5b:
+                    self.b5b_index[k].append(idx)
+
     def prune_b2_high_frequency_keys(self) -> Dict[str, int]:
         """
         Prune B2 posting lists whose document frequency exceeds max_token_doc_frequency.
@@ -273,6 +441,32 @@ class TargetIndex:
 
         self.pruned_b2_keys = dict(sorted(pruned.items(), key=lambda item: item[1], reverse=True))
         return self.pruned_b2_keys
+
+    def prune_b5_high_frequency_keys(self) -> Tuple[Dict[str, int], Dict[str, int]]:
+        """
+        Prune B5-A and B5-B posting lists whose document frequency exceeds max_b5_doc_frequency.
+        
+        Returns tuple of (pruned_b5a_keys, pruned_b5b_keys).
+        """
+        threshold = self.config.max_b5_doc_frequency
+
+        # Prune B5-A
+        pruned_a: Dict[str, int] = {}
+        keys_to_del_a = [k for k, v in self.b5a_index.items() if len(v) > threshold]
+        for k in keys_to_del_a:
+            pruned_a[k] = len(self.b5a_index[k])
+            del self.b5a_index[k]
+        self.pruned_b5a_keys = dict(sorted(pruned_a.items(), key=lambda item: item[1], reverse=True))
+
+        # Prune B5-B
+        pruned_b: Dict[str, int] = {}
+        keys_to_del_b = [k for k, v in self.b5b_index.items() if len(v) > threshold]
+        for k in keys_to_del_b:
+            pruned_b[k] = len(self.b5b_index[k])
+            del self.b5b_index[k]
+        self.pruned_b5b_keys = dict(sorted(pruned_b.items(), key=lambda item: item[1], reverse=True))
+
+        return self.pruned_b5a_keys, self.pruned_b5b_keys
 
     def query_b1(self, s1_entity: Entity) -> List[str]:
         """Query B1 pass only (exact normalized name + country)."""
@@ -343,18 +537,83 @@ class TargetIndex:
                         candidate_ids.append(self.entity_ids[idx])
         return candidate_ids
 
+    def query_b5a(self, s1_entity: Entity) -> List[str]:
+        """
+        Query B5-A pass only (building number + distinctive locality token + country, deduplicated).
+        """
+        keys = build_b5a_keys(
+            s1_entity.business_address,
+            s1_entity.country,
+            max_nums=self.config.b5a_max_nums,
+            max_toks=self.config.b5a_max_toks,
+            generic_tokens=self.config.generic_addr_tokens
+        )
+        if not keys:
+            return []
+
+        seen_indices: Set[int] = set()
+        candidate_ids: List[str] = []
+
+        for k in keys:
+            if k in self.b5a_index:
+                for idx in self.b5a_index[k]:
+                    if idx not in seen_indices:
+                        seen_indices.add(idx)
+                        candidate_ids.append(self.entity_ids[idx])
+        return candidate_ids
+
+    def query_b5b(self, s1_entity: Entity) -> List[str]:
+        """
+        Query B5-B pass only (two distinctive non-generic address tokens + country, deduplicated).
+        """
+        keys = build_b5b_keys(
+            s1_entity.business_address,
+            s1_entity.country,
+            max_toks=self.config.b5b_max_toks,
+            generic_tokens=self.config.generic_addr_tokens
+        )
+        if not keys:
+            return []
+
+        seen_indices: Set[int] = set()
+        candidate_ids: List[str] = []
+
+        for k in keys:
+            if k in self.b5b_index:
+                for idx in self.b5b_index[k]:
+                    if idx not in seen_indices:
+                        seen_indices.add(idx)
+                        candidate_ids.append(self.entity_ids[idx])
+        return candidate_ids
+
     def query_passes(self, s1_entity: Entity) -> Dict[str, List[str]]:
         """
         Query enabled passes and return candidates partitioned by pass.
         
         Returns:
-            Dict with keys 'b1', 'b2', 'b3', 'b4',
-            'cumulative_b1_b2', 'cumulative_b1_b2_b3', and 'cumulative' (B1+B2+B3+B4).
+            Dict with keys:
+            'b1', 'b2', 'b3', 'b4', 'b5a', 'b5b',
+            'cumulative_b1_b2', 'cumulative_b1_b2_b3', 'cumulative_b1_b4',
+            'cumulative_b1_b5a', and 'cumulative' (all enabled passes deduplicated).
         """
-        b1_cands = self.query_b1(s1_entity) if "exact_name_country" in self.config.enabled_passes else []
-        b2_cands = self.query_b2(s1_entity) if "distinctive_token_country" in self.config.enabled_passes else []
-        b3_cands = self.query_b3(s1_entity) if "name_prefix_country" in self.config.enabled_passes else []
-        b4_cands = self.query_b4(s1_entity) if "name_token_address" in self.config.enabled_passes else []
+        enabled = set(self.config.enabled_passes)
+
+        b1_cands = self.query_b1(s1_entity) if ("exact_name_country" in enabled or "b1" in enabled) else []
+        b2_cands = self.query_b2(s1_entity) if ("distinctive_token_country" in enabled or "b2" in enabled) else []
+        b3_cands = self.query_b3(s1_entity) if ("name_prefix_country" in enabled or "b3" in enabled) else []
+        b4_cands = self.query_b4(s1_entity) if ("name_token_address" in enabled or "b4" in enabled) else []
+        b5a_cands = self.query_b5a(s1_entity) if (
+            "address_number_locality" in enabled
+            or "b5a" in enabled
+            or "b5_a" in enabled
+            or "b5a_num_locality_country" in enabled
+        ) else []
+        b5b_cands = self.query_b5b(s1_entity) if (
+            "address_distinctive_pair" in enabled
+            or "b5b" in enabled
+            or "b5_b" in enabled
+            or "b5b_distinctive_pair_country" in enabled
+        ) else []
 
         # Cumulative B1 + B2
         seen_12: Set[str] = set()
@@ -370,10 +629,22 @@ class TargetIndex:
         for cid in b3_cands:
             if cid not in seen_123: seen_123.add(cid); cum_123.append(cid)
 
-        # Final Cumulative B1 + B2 + B3 + B4 (Additive)
-        seen_all = set(seen_123)
-        cum_all = list(cum_123)
+        # Cumulative B1 + B2 + B3 + B4 (Additive)
+        seen_b14 = set(seen_123)
+        cum_b14 = list(cum_123)
         for cid in b4_cands:
+            if cid not in seen_b14: seen_b14.add(cid); cum_b14.append(cid)
+
+        # Cumulative B1..B4 + B5-A
+        seen_b15a = set(seen_b14)
+        cum_b15a = list(cum_b14)
+        for cid in b5a_cands:
+            if cid not in seen_b15a: seen_b15a.add(cid); cum_b15a.append(cid)
+
+        # Final Cumulative B1..B5 (all enabled passes, fully deduplicated)
+        seen_all = set(seen_b15a)
+        cum_all = list(cum_b15a)
+        for cid in b5b_cands:
             if cid not in seen_all: seen_all.add(cid); cum_all.append(cid)
 
         return {
@@ -381,8 +652,13 @@ class TargetIndex:
             "b2": b2_cands,
             "b3": b3_cands,
             "b4": b4_cands,
+            "b5a": b5a_cands,
+            "b5b": b5b_cands,
             "cumulative_b1_b2": cum_12,
             "cumulative_b1_b2_b3": cum_123,
+            "cumulative_b1_b4": cum_b14,
+            "cumulative_b1_b2_b3_b4": cum_b14,  # Alias
+            "cumulative_b1_b5a": cum_b15a,
             "cumulative": cum_all
         }
 
@@ -410,9 +686,29 @@ class TargetIndex:
         )
         return sorted_keys[:top_n]
 
+    def get_top_b5a_keys(self, top_n: int = 10) -> List[Tuple[str, int]]:
+        """Return top N most frequent B5-A keys with their posting counts."""
+        sorted_keys = sorted(
+            ((k, len(v)) for k, v in self.b5a_index.items()),
+            key=lambda item: item[1],
+            reverse=True
+        )
+        return sorted_keys[:top_n]
+
+    def get_top_b5b_keys(self, top_n: int = 10) -> List[Tuple[str, int]]:
+        """Return top N most frequent B5-B keys with their posting counts."""
+        sorted_keys = sorted(
+            ((k, len(v)) for k, v in self.b5b_index.items()),
+            key=lambda item: item[1],
+            reverse=True
+        )
+        return sorted_keys[:top_n]
+
     def get_stats(self) -> Dict[str, Any]:
         """Return index summary statistics."""
         b4_postings = sum(len(v) for v in self.b4_index.values())
+        b5a_postings = sum(len(v) for v in self.b5a_index.values())
+        b5b_postings = sum(len(v) for v in self.b5b_index.values())
         total_ents = len(self.entity_ids)
         return {
             "source_name": self.source_name,
@@ -423,6 +719,12 @@ class TargetIndex:
             "b3_unique_keys": len(self.b3_index),
             "b4_unique_keys": len(self.b4_index),
             "b4_total_postings": b4_postings,
+            "b5a_unique_keys": len(self.b5a_index),
+            "b5a_pruned_keys": len(self.pruned_b5a_keys),
+            "b5a_total_postings": b5a_postings,
+            "b5b_unique_keys": len(self.b5b_index),
+            "b5b_pruned_keys": len(self.pruned_b5b_keys),
+            "b5b_total_postings": b5b_postings,
             "missing_addresses": self.missing_address_count,
             "missing_address_pct": round((self.missing_address_count / total_ents * 100), 2) if total_ents else 0.0,
         }
@@ -442,19 +744,27 @@ class CandidateGenerator:
 
     def build_indexes(self, split: str = "train") -> Dict[str, float]:
         """
-        Build independent S2 and S3 inverted indexes with B1, B2, B3, and B4 passes.
-        Applies B2 high-frequency token pruning.
+        Build independent S2 and S3 inverted indexes with B1, B2, B3, B4, B5-A, and B5-B passes.
+        Applies B2 and B5 high-frequency token pruning.
         Returns dict containing build elapsed times in seconds.
         """
         build_times: Dict[str, float] = {}
+        enabled = set(self.config.enabled_passes)
 
         # 1. Build Source 2 index
         s2_path = self.loader.get_file_path(split, "source2")
         t0 = time.perf_counter()
         for batch in self.loader.stream_entities(s2_path, chunk_size=self.config.chunk_size):
             self.s2_index.add_batch(batch)
-        if "distinctive_token_country" in self.config.enabled_passes:
+        if "distinctive_token_country" in enabled or "b2" in enabled:
             self.s2_index.prune_b2_high_frequency_keys()
+        if (
+            "address_number_locality" in enabled
+            or "address_distinctive_pair" in enabled
+            or "b5a" in enabled
+            or "b5b" in enabled
+        ):
+            self.s2_index.prune_b5_high_frequency_keys()
         build_times["source2"] = time.perf_counter() - t0
 
         # 2. Build Source 3 index
@@ -462,8 +772,58 @@ class CandidateGenerator:
         t0 = time.perf_counter()
         for batch in self.loader.stream_entities(s3_path, chunk_size=self.config.chunk_size):
             self.s3_index.add_batch(batch)
-        if "distinctive_token_country" in self.config.enabled_passes:
+        if "distinctive_token_country" in enabled or "b2" in enabled:
             self.s3_index.prune_b2_high_frequency_keys()
+        if (
+            "address_number_locality" in enabled
+            or "address_distinctive_pair" in enabled
+            or "b5a" in enabled
+            or "b5b" in enabled
+        ):
+            self.s3_index.prune_b5_high_frequency_keys()
+        build_times["source3"] = time.perf_counter() - t0
+
+        return build_times
+
+    def build_indexes_from_entities(
+        self,
+        s2_entities: List[Entity],
+        s3_entities: List[Entity]
+    ) -> Dict[str, float]:
+        """
+        Build S2 and S3 inverted indexes from provided in-memory Entity lists.
+        Used for fast deterministic integration testing (smoke test).
+        Returns dict containing build elapsed times in seconds.
+        """
+        build_times: Dict[str, float] = {}
+        enabled = set(self.config.enabled_passes)
+
+        # 1. Build Source 2 index from entities
+        t0 = time.perf_counter()
+        self.s2_index.add_batch(s2_entities)
+        if "distinctive_token_country" in enabled or "b2" in enabled:
+            self.s2_index.prune_b2_high_frequency_keys()
+        if (
+            "address_number_locality" in enabled
+            or "address_distinctive_pair" in enabled
+            or "b5a" in enabled
+            or "b5b" in enabled
+        ):
+            self.s2_index.prune_b5_high_frequency_keys()
+        build_times["source2"] = time.perf_counter() - t0
+
+        # 2. Build Source 3 index from entities
+        t0 = time.perf_counter()
+        self.s3_index.add_batch(s3_entities)
+        if "distinctive_token_country" in enabled or "b2" in enabled:
+            self.s3_index.prune_b2_high_frequency_keys()
+        if (
+            "address_number_locality" in enabled
+            or "address_distinctive_pair" in enabled
+            or "b5a" in enabled
+            or "b5b" in enabled
+        ):
+            self.s3_index.prune_b5_high_frequency_keys()
         build_times["source3"] = time.perf_counter() - t0
 
         return build_times
@@ -474,7 +834,9 @@ class CandidateGenerator:
         
         Returns:
             Dict containing tuples of (s2_candidates, s3_candidates) for
-            'b1', 'b2', 'b3', 'b4', 'cumulative_b1_b2', 'cumulative_b1_b2_b3', and 'cumulative'.
+            'b1', 'b2', 'b3', 'b4', 'b5a', 'b5b',
+            'cumulative_b1_b2', 'cumulative_b1_b2_b3', 'cumulative_b1_b4',
+            'cumulative_b1_b5a', and 'cumulative'.
         """
         s2_passes = self.s2_index.query_passes(s1_entity)
         s3_passes = self.s3_index.query_passes(s1_entity)
@@ -483,8 +845,12 @@ class CandidateGenerator:
             "b2": (s2_passes["b2"], s3_passes["b2"]),
             "b3": (s2_passes["b3"], s3_passes["b3"]),
             "b4": (s2_passes["b4"], s3_passes["b4"]),
+            "b5a": (s2_passes["b5a"], s3_passes["b5a"]),
+            "b5b": (s2_passes["b5b"], s3_passes["b5b"]),
             "cumulative_b1_b2": (s2_passes["cumulative_b1_b2"], s3_passes["cumulative_b1_b2"]),
             "cumulative_b1_b2_b3": (s2_passes["cumulative_b1_b2_b3"], s3_passes["cumulative_b1_b2_b3"]),
+            "cumulative_b1_b4": (s2_passes["cumulative_b1_b4"], s3_passes["cumulative_b1_b4"]),
+            "cumulative_b1_b5a": (s2_passes["cumulative_b1_b5a"], s3_passes["cumulative_b1_b5a"]),
             "cumulative": (s2_passes["cumulative"], s3_passes["cumulative"])
         }
 
@@ -494,3 +860,17 @@ class CandidateGenerator:
         """
         passes = self.generate_candidates_passes(s1_entity)
         return passes["cumulative"]
+
+    def get_raw_entity(self, entity_id: str) -> Optional[Entity]:
+        """
+        Fast O(1) lookup of raw Entity object for target entities in S2 or S3.
+        Returns None if entity_id is not in index.
+        """
+        if entity_id.startswith("S2-") and entity_id in self.s2_index.entity_store_raw:
+            name, addr, country = self.s2_index.entity_store_raw[entity_id]
+            return Entity(entity_id=entity_id, business_name=name, business_address=addr, country=country)
+        elif entity_id.startswith("S3-") and entity_id in self.s3_index.entity_store_raw:
+            name, addr, country = self.s3_index.entity_store_raw[entity_id]
+            return Entity(entity_id=entity_id, business_name=name, business_address=addr, country=country)
+        return None
+

@@ -1,0 +1,127 @@
+{
+  "full_validation_memory_analysis": {
+    "entity_counts": {
+      "train_s1_entities": 1765457,
+      "val_s1_entities": 441364,
+      "total_s1_entities": 2206821,
+      "target_source2_entities": 5000000,
+      "target_source3_entities": 5000000
+    },
+    "smoke_test_baseline_rates": {
+      "train_pairs_per_s1": 291.5325,
+      "val_pairs_per_s1": 286.156
+    },
+    "estimated_candidate_counts": {
+      "estimated_train_candidate_pairs": 514683000,
+      "estimated_val_candidate_pairs": 126299000,
+      "estimated_total_candidate_pairs": 640982000
+    },
+    "estimated_memory_breakdown_gb": {
+      "python_train_pair_tuples_list": {
+        "min_gb": 30.88,
+        "max_gb": 61.76,
+        "details": "514.7M (s1_id, cand_id) tuples in Python list (list pointers + tuple headers + str references)"
+      },
+      "python_val_pair_tuples_list": {
+        "min_gb": 7.58,
+        "max_gb": 15.16,
+        "details": "126.3M (s1_id, cand_id) tuples in Python list"
+      },
+      "s1_raw_entity_objects": {
+        "train_s1_dict_gb": 0.88,
+        "val_s1_dict_gb": 0.22,
+        "details": "2.2M Entity dataclass instances in memory"
+      },
+      "normalized_entity_store": {
+        "min_gb": 15.0,
+        "max_gb": 35.0,
+        "details": "NormalizedEntity objects for all unique entities in pairs (norm strings, 3-gram sets, token lists)"
+      },
+      "train_feature_matrix_x_train": {
+        "float32_matrix_gb": 51.47,
+        "float64_matrix_gb": 102.94,
+        "vstack_peak_memory_gb": 102.94,
+        "details": "514.7M rows x 25 features. np.vstack creates a list of 514.7M 1D arrays + destination buffer"
+      },
+      "val_feature_matrix_x_val": {
+        "float32_matrix_gb": 12.63,
+        "vstack_peak_memory_gb": 25.26,
+        "details": "126.3M rows x 25 features"
+      },
+      "model_fitting_scaler_and_lbfgs": {
+        "standard_scaler_copy_gb": 51.47,
+        "lbfgs_working_memory_gb": 10.0,
+        "details": "StandardScaler.fit_transform creates a scaled copy of X_train; LogisticRegression solver allocates working buffers"
+      },
+      "total_peak_ram_current_architecture_gb": {
+        "min_gb": 169.0,
+        "max_gb": 288.0,
+        "comment": "Exceeds standard workstation RAM (16GB - 64GB) by 4x to 15x, triggering MemoryError at pair list materialization"
+      }
+    },
+    "materialization_points_in_code": [
+      {
+        "location": "run_matching_validation.py: generate_blocking_candidate_pairs() (lines 138-145)",
+        "issue": "Accumulates all generated pairs in memory: pairs.append((s1_id, cand_id))"
+      },
+      {
+        "location": "run_matching_validation.py: load_raw_s1_entities() (lines 41-60)",
+        "issue": "Loads all 1.76M train S1 entities into a Python dictionary"
+      },
+      {
+        "location": "run_matching_validation.py: assign_ground_truth_labels() (lines 220-221)",
+        "issue": "Builds 514.7M element label list in memory"
+      },
+      {
+        "location": "run_matching_validation.py: evaluate_candidate_blocking_recall() (lines 156-158)",
+        "issue": "Constructs defaultdict(set) containing 126.3M validation pairs"
+      },
+      {
+        "location": "run_matching_validation.py: load_normalized_entity_store() (lines 224-300)",
+        "issue": "Materializes millions of NormalizedEntity instances into a global entity_store dictionary"
+      },
+      {
+        "location": "src/features.py: extract_batch_features() (lines 321-337)",
+        "issue": "Accumulates 514.7M 1D numpy arrays into features_list before np.vstack"
+      },
+      {
+        "location": "src/matching_model.py: EntityMatchingModel.fit() (lines 76-85)",
+        "issue": "StandardScaler.fit_transform(X) and LogisticRegression.fit() require in-memory monolithic 2D arrays"
+      }
+    ],
+    "downstream_operations_requiring_candidate_data": [
+      {
+        "stage": "Candidate Blocking Evaluation",
+        "requirement": "Needs link-level S2/S3 recall and S1 complete coverage",
+        "streamable": true,
+        "streaming_solution": "Compute running true link recall counts and S1 complete coverage per S1 entity during streaming"
+      },
+      {
+        "stage": "Model Training",
+        "requirement": "Needs feature matrix X and binary labels y",
+        "streamable": true,
+        "streaming_solution": "Train LogisticRegression on a balanced/subsampled dataset (e.g. all positives + top hard negatives / random negative sample of 5M-10M pairs, <1GB RAM) or stream via SGDClassifier(loss='log_loss', partial_fit)"
+      },
+      {
+        "stage": "Validation Inference & Threshold Tuning",
+        "requirement": "Needs prediction probabilities per S1 entity to select top matches across thresholds (0.30 to 0.98)",
+        "streamable": true,
+        "streaming_solution": "Score validation candidates in S1 chunks, retain only candidates with P(match) >= min_threshold (e.g. 0.20) per S1 entity, aggregate S1-level precision/recall/F0.5 incrementally"
+      },
+      {
+        "stage": "Error Analysis",
+        "requirement": "Needs top false positive and false negative candidate examples",
+        "streamable": true,
+        "streaming_solution": "Maintain bounded min-heaps (size 20) for top false positives and false negatives during streaming evaluation"
+      }
+    ],
+    "recommended_architecture": {
+      "chunk_size_s1_entities": 10000,
+      "feature_extraction": "Chunk-by-chunk generator: yields (X_chunk, y_chunk, valid_pairs_chunk) for ~2.9M pairs per chunk (~290MB RAM peak)",
+      "entity_store": "Lightweight LRU / chunk-scoped NormalizedEntity cache rather than loading full datasets",
+      "model_training": "Stratified candidate negative subsampling for exact LogisticRegression (5M-10M pairs, fits in <1GB RAM) OR out-of-core SGDClassifier(loss='log_loss') with partial_fit()",
+      "validation_evaluation": "Chunked streaming S1 inference maintaining only candidate links above threshold 0.20 per S1 entity",
+      "smoke_test_compatibility": "Preserve exact logic; smoke test runs chunking in a single fast batch of 2,000 S1 entities"
+    }
+  }
+}

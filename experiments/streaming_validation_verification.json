@@ -1,0 +1,47 @@
+{
+  "streaming_smoke_test_verification": {
+    "dataset": {
+      "train_s1_entities": 2000,
+      "val_s1_entities": 500,
+      "s2_target_subset": 24130,
+      "s3_target_subset": 24460,
+      "chunk_s1_size": 500,
+      "random_seed": 42
+    },
+    "candidate_generation": {
+      "monolithic_train_pairs": 583065,
+      "streaming_train_pairs": 583065,
+      "train_pairs_diff": 0,
+      "monolithic_val_pairs": 143078,
+      "streaming_val_pairs": 143078,
+      "val_pairs_diff": 0
+    },
+    "blocking_recall": {
+      "monolithic_s2_recall": 0.9766,
+      "streaming_s2_recall": 0.9766,
+      "monolithic_s3_recall": 0.9861,
+      "streaming_s3_recall": 0.9861,
+      "monolithic_combined_recall": 0.9815,
+      "streaming_combined_recall": 0.9815,
+      "monolithic_s1_coverage_pct": 95.2,
+      "streaming_s1_coverage_pct": 95.2,
+      "s1_complete_entities": 476
+    },
+    "model_evaluation": {
+      "monolithic_best_threshold": 0.98,
+      "streaming_best_threshold": 0.98,
+      "monolithic_validation_s1_f05": 0.9617,
+      "streaming_validation_s1_f05": 0.9617,
+      "f05_diff": 0.0,
+      "threshold_grid": [
+        0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.92, 0.94, 0.95, 0.96, 0.97, 0.98
+      ]
+    },
+    "memory_and_runtime": {
+      "monolithic_runtime_seconds": 113.99,
+      "streaming_runtime_seconds": 109.71,
+      "peak_memory_saving_factor": "~4x to 8x on smoke test; >25x on full validation",
+      "exact_equivalence_verified": true
+    }
+  }
+}
