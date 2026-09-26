@@ -22,7 +22,8 @@ from src.data_loader import DataLoader, Entity
 from src.normalization import (
     normalize_business_name,
     tokenize_business_name,
-    extract_address_tokens
+    extract_address_tokens,
+    DEFAULT_NAME_STOPWORDS
 )
 
 # Standard generic address stopwords/markers to exclude from distinctive token pairs
@@ -345,6 +346,8 @@ class TargetIndex:
         b5a_max_toks = self.config.b5a_max_toks
         b5b_max_toks = self.config.b5b_max_toks
         generic_tokens = self.config.generic_addr_tokens
+        need_name = enable_b1 or enable_b2 or enable_b3 or enable_b4
+        need_addr = enable_b4 or enable_b5a or enable_b5b
 
         for i, entity in enumerate(entities):
             idx = base_idx + i
@@ -355,70 +358,85 @@ class TargetIndex:
                 entity.country
             )
 
-            if not entity.business_address or not entity.business_address.strip():
+            has_addr = bool(entity.business_address and entity.business_address.strip())
+            if not has_addr:
                 self.missing_address_count += 1
 
+            norm_country = entity.country.strip().lower() if entity.country and isinstance(entity.country, str) else ""
+
+            # 1. Single-pass Name Normalization & Tokenization
+            norm_name = ""
+            name_tokens_clean: List[str] = []
+            if need_name and entity.business_name:
+                norm_name = normalize_business_name(entity.business_name)
+                if norm_name:
+                    raw_tokens = norm_name.split()
+                    name_tokens_clean = [t for t in raw_tokens if t not in DEFAULT_NAME_STOPWORDS]
+
+            # 2. Single-pass Address Tokenization (min_token_len=2)
+            addr_tokens_all: List[str] = []
+            if need_addr and has_addr:
+                addr_tokens_all = extract_address_tokens(entity.business_address, min_token_len=2)
+
             # Pass 1 (B1): Exact Name + Country
-            if enable_b1:
-                key_b1 = build_exact_name_country_key(entity.business_name, entity.country)
-                if key_b1:
-                    self.b1_index[key_b1].append(idx)
+            if enable_b1 and norm_name:
+                self.b1_index[f"{norm_name}___{norm_country}"].append(idx)
 
             # Pass 2 (B2): Distinctive Tokens + Country
-            if enable_b2:
-                keys_b2 = build_distinctive_token_country_keys(
-                    entity.business_name,
-                    entity.country,
-                    min_token_len=b2_min_len
-                )
-                for k in keys_b2:
-                    self.b2_index[k].append(idx)
+            if enable_b2 and name_tokens_clean:
+                tokens_b2 = set(t for t in name_tokens_clean if len(t) >= b2_min_len)
+                for t in tokens_b2:
+                    self.b2_index[f"tok_{t}___{norm_country}"].append(idx)
 
             # Pass 3 (B3): Character Prefix + Country
-            if enable_b3:
-                key_b3 = build_name_prefix_country_key(
-                    entity.business_name,
-                    entity.country,
-                    prefix_len=prefix_len
-                )
-                if key_b3:
-                    self.b3_index[key_b3].append(idx)
+            if enable_b3 and norm_name and len(norm_name) >= prefix_len:
+                self.b3_index[f"pref_{norm_name[:prefix_len]}___{norm_country}"].append(idx)
 
             # Pass 4 (B4): Name Token + Address Token (Additive)
-            if enable_b4:
-                keys_b4 = build_name_address_keys(
-                    entity.business_name,
-                    entity.business_address,
-                    name_min_len=b4_name_min,
-                    addr_min_len=b4_addr_min,
-                    max_name_tokens=b4_max_name,
-                    max_addr_tokens=b4_max_addr
-                )
-                for k in keys_b4:
-                    self.b4_index[k].append(idx)
+            if enable_b4 and name_tokens_clean and addr_tokens_all:
+                selected_name = [t for t in name_tokens_clean if len(t) >= b4_name_min][:b4_max_name]
+                selected_addr = [t for t in addr_tokens_all if len(t) >= b4_addr_min][:b4_max_addr]
+                if selected_name and selected_addr:
+                    seen_b4: Set[str] = set()
+                    for nt in selected_name:
+                        for at in selected_addr:
+                            k = f"na_{nt}___{at}"
+                            if k not in seen_b4:
+                                seen_b4.add(k)
+                                self.b4_index[k].append(idx)
 
             # Pass 5A (B5-A): Building/House Number + Distinctive Locality Token + Country
-            if enable_b5a:
-                keys_b5a = build_b5a_keys(
-                    entity.business_address,
-                    entity.country,
-                    max_nums=b5a_max_nums,
-                    max_toks=b5a_max_toks,
-                    generic_tokens=generic_tokens
-                )
-                for k in keys_b5a:
-                    self.b5a_index[k].append(idx)
+            if enable_b5a and addr_tokens_all:
+                num_tokens: List[str] = []
+                distinctive_tokens: List[str] = []
+                for t in addr_tokens_all:
+                    if t.isdigit() or (len(t) >= 2 and any(c.isdigit() for c in t) and any(c.isalpha() for c in t)):
+                        if t not in num_tokens:
+                            num_tokens.append(t)
+                    elif len(t) >= 3 and t not in generic_tokens:
+                        if t not in distinctive_tokens:
+                            distinctive_tokens.append(t)
+
+                selected_nums = num_tokens[:b5a_max_nums]
+                selected_toks = distinctive_tokens[:b5a_max_toks]
+                for num in selected_nums:
+                    for tok in selected_toks:
+                        self.b5a_index[f"b5_num_{num}_{tok}___{norm_country}"].append(idx)
 
             # Pass 5B (B5-B): Two Distinctive Non-Generic Address Tokens + Country
-            if enable_b5b:
-                keys_b5b = build_b5b_keys(
-                    entity.business_address,
-                    entity.country,
-                    max_toks=b5b_max_toks,
-                    generic_tokens=generic_tokens
-                )
-                for k in keys_b5b:
-                    self.b5b_index[k].append(idx)
+            if enable_b5b and addr_tokens_all:
+                distinctive_b5b: List[str] = []
+                for t in addr_tokens_all:
+                    if len(t) >= 3 and t not in generic_tokens and not t.isdigit():
+                        if t not in distinctive_b5b:
+                            distinctive_b5b.append(t)
+
+                selected_b5b = distinctive_b5b[:b5b_max_toks]
+                if len(selected_b5b) >= 2:
+                    for i1 in range(len(selected_b5b)):
+                        for j1 in range(i1 + 1, len(selected_b5b)):
+                            t1, t2 = sorted([selected_b5b[i1], selected_b5b[j1]])
+                            self.b5b_index[f"b5_pair_{t1}_{t2}___{norm_country}"].append(idx)
 
     def prune_b2_high_frequency_keys(self) -> Dict[str, int]:
         """
