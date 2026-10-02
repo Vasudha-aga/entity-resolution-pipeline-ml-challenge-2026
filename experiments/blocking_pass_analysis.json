@@ -1,0 +1,186 @@
+{
+  "evaluation_scope": {
+    "validation_s1_entities": 500,
+    "total_ground_truth_links": 1677,
+    "smoke_target_s2_size": 24115,
+    "smoke_target_s3_size": 24447
+  },
+  "pass_progression": {
+    "B1": {
+      "candidates": 869,
+      "s2_recall": 0.4636,
+      "s3_recall": 0.4746,
+      "combined_recall": 0.4693,
+      "s1_complete_coverage_pct": 18.2,
+      "s1_complete_coverage_count": 91,
+      "additional_links_recovered": 787
+    },
+    "B1_B2": {
+      "candidates": 131698,
+      "s2_recall": 0.8101,
+      "s3_recall": 0.8637,
+      "combined_recall": 0.8378,
+      "s1_complete_coverage_pct": 64.8,
+      "s1_complete_coverage_count": 324,
+      "additional_links_recovered": 618
+    },
+    "B1_B2_B3": {
+      "candidates": 137208,
+      "s2_recall": 0.8607,
+      "s3_recall": 0.8972,
+      "combined_recall": 0.8795,
+      "s1_complete_coverage_pct": 74.2,
+      "s1_complete_coverage_count": 371,
+      "additional_links_recovered": 70
+    },
+    "B1_B2_B3_B4": {
+      "candidates": 137375,
+      "s2_recall": 0.8631,
+      "s3_recall": 0.8972,
+      "combined_recall": 0.8807,
+      "s1_complete_coverage_pct": 74.2,
+      "s1_complete_coverage_count": 371,
+      "additional_links_recovered": 2
+    }
+  },
+  "missed_links_summary": {
+    "total_missed_links": 200,
+    "incomplete_s1_entities": 129,
+    "failure_category_counts": {
+      "abbreviation": 16,
+      "exact/name normalization failure": 27,
+      "address variation": 142,
+      "generic name": 14,
+      "unknown": 1
+    },
+    "sample_missed_links_by_category": {
+      "abbreviation": [
+        {
+          "s1_id": "S1-100246232",
+          "target_id": "S2-242386847",
+          "s1_name": "New Delhi Delhi Pvt Ltd",
+          "target_name": "newdelhidelhi.com",
+          "s1_addr": "South Delhi, 2Nd Floor, Sant Nagar, East Of Kailash, New Delhi, Delhi, 38",
+          "target_addr": "38, 2ND FLOOR, SANT NAGAR, EAST OF KAILASH, NEW DELHI, \u0926\u093f\u0932\u094d\u0932\u0940",
+          "country": "India"
+        },
+        {
+          "s1_id": "S1-10014512",
+          "target_id": "S3-524026823",
+          "s1_name": "Rev Tradecom Private Limited",
+          "target_name": "#revtradecom",
+          "s1_addr": "Plot No. 273, Vishwakarma, Nagar, Maharani Farm, Jaipur, Rajasthan",
+          "target_addr": "H.no 273, Vishwakarma, Nagar, Maharani Farm, Jaipur, RJ",
+          "country": "India"
+        },
+        {
+          "s1_id": "S1-10035276",
+          "target_id": "S2-116573806",
+          "s1_name": "All Environmental Ventures",
+          "target_name": "allenvironmentalventures.com",
+          "s1_addr": "1792 10, Jefferson, NY",
+          "target_addr": "01792 10, JEFFERSON, NY",
+          "country": "US"
+        }
+      ],
+      "exact/name normalization failure": [
+        {
+          "s1_id": "S1-100517803",
+          "target_id": "S3-794261683",
+          "s1_name": "Brightiq Tax Service",
+          "target_name": "taxservice.com",
+          "s1_addr": "334 Pollys Rock Road, Cairo, NY",
+          "target_addr": "Round Top, New York, 334 Pollys Rock Rd",
+          "country": "US"
+        },
+        {
+          "s1_id": "S1-100981966",
+          "target_id": "S3-595405227",
+          "s1_name": "Star Engineering Private Limited",
+          "target_name": "\u0c38\u0c4d\u0c1f\u0c3e\u0c30\u0c4d \u0c07\u0c02\u0c1c\u0c28\u0c40\u0c30\u0c3f\u0c02\u0c17\u0c4d \u0c2a\u0c4d\u0c30\u0c48\u0c35\u0c47\u0c1f\u0c4d \u0c32\u0c3f\u0c2e\u0c3f\u0c1f\u0c46\u0c21\u0c4d",
+          "s1_addr": "Flat No 203, Sree Nilayam A/B Sampoorna Market, Manikonda, Hyderabad, Rangareddy, Telangana",
+          "target_addr": "H.no 03, Hyderabad, Rangareddy, \u0c24\u0c46\u0c32\u0c02\u0c17\u0c3e\u0c23",
+          "country": "India"
+        },
+        {
+          "s1_id": "S1-100959516",
+          "target_id": "S2-1662808",
+          "s1_name": "East Builders Private Limited",
+          "target_name": "\u0c88\u0cb8\u0ccd\u0c9f\u0ccd \u0cac\u0cbf\u0cb2\u0ccd\u0ca1\u0cb0\u0ccd\u0cb8\u0ccd \u0caa\u0ccd\u0cb0\u0cc8\u0cb5\u0cc7\u0c9f\u0ccd \u0cb2\u0cbf\u0cae\u0cbf\u0c9f\u0cc6\u0ca1\u0ccd",
+          "s1_addr": "A-13, 3Rd Stage, Peenya Industrial Area, Bangalore North, Bangalore, Karnataka",
+          "target_addr": "A-13, BANGALORE NORTH, BANGALORE, Karnataka",
+          "country": "India"
+        }
+      ],
+      "address variation": [
+        {
+          "s1_id": "S1-100150258",
+          "target_id": "S3-550649512",
+          "s1_name": "Hari Consulting LLP",
+          "target_name": "\u0939\u0930\u093f \u0915\u0902\u0938\u0932\u094d\u091f\u093f\u0902\u0917 \u090f\u0932\u090f\u0932\u092a\u0940",
+          "s1_addr": "Munghisapur Bhadpura, Kanpur, Kanpur Dehat, Uttar Pradesh",
+          "target_addr": "Munghisapur Bhadpura, Kanpur, Kanpur Dehat, UP",
+          "country": "India"
+        },
+        {
+          "s1_id": "S1-100776750",
+          "target_id": "S2-802158536",
+          "s1_name": "Bright Engineering Ltd",
+          "target_name": "BRlGHT EGIENEMRIG LTD",
+          "s1_addr": "No.Ap 700, 28Th Streetkorattur Chennai, Chennai, Tamil Nadu",
+          "target_addr": "NO.AP 700, 28TH STREETKORATTUR CHENNAI, CHENNAI, \u0ba4\u0bae\u0bbf\u0bb4\u0bcd\u0ba8\u0bbe\u0b9f\u0bc1",
+          "country": "India"
+        },
+        {
+          "s1_id": "S1-100680941",
+          "target_id": "S3-764883984",
+          "s1_name": "Surya Products Private Limited",
+          "target_name": "productssuryaprivate.com",
+          "s1_addr": "Uttar Pradesh, Agra, Bah, C/O Chandra Pal Baghel Khohari, Agra",
+          "target_addr": "C/o Chandra Pal Baghel Khohari, Agra, UP",
+          "country": "India"
+        }
+      ],
+      "generic name": [
+        {
+          "s1_id": "S1-100616553",
+          "target_id": "S3-841303654",
+          "s1_name": "Carter Harvard Clinic",
+          "target_name": "Chclinic.Com",
+          "s1_addr": "329 Garfield Street, Emporia, KS",
+          "target_addr": "329- Garfield St, Emporia, Kansas",
+          "country": "US"
+        },
+        {
+          "s1_id": "S1-100388858",
+          "target_id": "S3-785296426",
+          "s1_name": "Indian Services",
+          "target_name": "Sri Mirayumaonyx",
+          "s1_addr": "Door No. 780, Avinashi Road, Coimbatore, Tamil Nadu",
+          "target_addr": "Door No 780., Coimbatore, NULL, TN",
+          "country": "India"
+        },
+        {
+          "s1_id": "S1-10010276",
+          "target_id": "S2-737771020",
+          "s1_name": "Baba Care Private Limited",
+          "target_name": "\u092c\u093e\u092c\u093e \u0915\u0947\u092f\u0930 \u092a\u094d\u0930\u093e\u0907\u0935\u0947\u091f \u0932\u093f\u092e\u093f\u091f\u0947\u0921",
+          "s1_addr": "12, Ward No.8, Sirathu, Kaushambi, Uttar Pradesh",
+          "target_addr": "12, SIRATHU, KAUSHAMBI, Uttar Pradesh",
+          "country": "India"
+        }
+      ],
+      "unknown": [
+        {
+          "s1_id": "S1-100183735",
+          "target_id": "S3-779786706",
+          "s1_name": "Gs Trading Ltd",
+          "target_name": "(Services) Gs Ltd",
+          "s1_addr": "D/6/3, Parth Indraprsth Tower Nr, Sarkari Vasahat, Vastrapur, Ahmedabad, Gujarat",
+          "target_addr": "D/6/3, Ahmedabad, GJ",
+          "country": "India"
+        }
+      ]
+    }
+  }
+}

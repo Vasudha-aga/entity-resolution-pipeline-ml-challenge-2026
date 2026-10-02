@@ -1,0 +1,18 @@
+{
+  "production_b1_b5_verification": {
+    "total_candidates": 143078,
+    "s2_recall": 0.9766,
+    "s2_retrieved": 792,
+    "s2_total_gt": 811,
+    "s3_recall": 0.9861,
+    "s3_retrieved": 854,
+    "s3_total_gt": 866,
+    "combined_recall": 0.9815,
+    "combined_retrieved": 1646,
+    "combined_total_gt": 1677,
+    "s1_complete_coverage_pct": 95.2,
+    "s1_complete_coverage_count": 476,
+    "s1_total_entities": 500,
+    "match_experimental_baseline": true
+  }
+}
